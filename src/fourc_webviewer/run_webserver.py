@@ -8,7 +8,7 @@ from fourc_webviewer_default_files import (
 SERVER_PORT = 12345
 
 
-def run_webviewer(fourc_yaml_file=None):
+def run_webviewer(no_webserver, fourc_yaml_file=None):
     """Runs the webviewer by creating a dedicated webserver object, starting it
     and cleaning up afterwards."""
 
@@ -21,7 +21,8 @@ def run_webviewer(fourc_yaml_file=None):
     )
 
     # start the server after everything is set up
-    fourc_webserver.server.start(port=SERVER_PORT)
+    if not no_webserver:
+        fourc_webserver.server.start(port=SERVER_PORT)
 
     # run cleanup
     fourc_webserver.cleanup()

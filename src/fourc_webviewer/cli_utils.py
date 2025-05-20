@@ -19,8 +19,14 @@ def get_arguments():
     """
     parser = argparse.ArgumentParser(description="4C Webviewer")
     parser.add_argument(
+        "--no_webserver",
+        action="store_true",
+        help="Don't start the webserver with its GUI?",
+    )
+    parser.add_argument(
         "--fourc_yaml_file", type=str, help="input file path to visualize"
     )
+    parser.set_defaults(no_webserver=False)
 
     args = parser.parse_args()
 

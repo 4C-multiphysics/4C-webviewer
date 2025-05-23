@@ -18,7 +18,7 @@ repos:
         name: Check valid YAML syntax
       - id: end-of-file-fixer
         name: Check for newline at end of file
-        exclude: '^LICENSE$'
+        exclude: "^LICENSE$"
       - id: debug-statements
         name: Check for debugger imports
       - id: trailing-whitespace
@@ -35,7 +35,7 @@ repos:
     hooks:
       - id: docformatter
         name: Run docformatter (formatter for docstrings)
-        args: ["--in-place", "--config=./pyproject.toml", "-r", "src/fourc_webviewer/", "test/"]
+        args: ["--in-place", "--config=./pyproject.toml", "-r", "src/fourc_webviewer/", "tests/"]
   - repo: https://github.com/econchick/interrogate
     rev: 1.7.0
     hooks:

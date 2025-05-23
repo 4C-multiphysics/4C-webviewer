@@ -25,6 +25,9 @@ from fourc_webviewer.input_file_utils.io_utils import (
     write_fourc_yaml_file,
 )
 from fourc_webviewer.python_utils import convert_string2number, find_value_recursively
+from fourc_webviewer_default_files import (
+    DEFAULT_INPUT_FILE,
+)
 
 # always set pyvista to plot off screen with Trame
 pv.OFF_SCREEN = True
@@ -36,7 +39,7 @@ class FourCWebServer:
     components (e.g., state, controller) along with other relevant server-only
     variables."""
 
-    def __init__(self, page_title, fourc_yaml_file):
+    def __init__(self, page_title="4C Webviewer", fourc_yaml_file=DEFAULT_INPUT_FILE):
         """Constructor.
 
         Args:

@@ -11,3 +11,7 @@ numpy
 # include fourcipp from github
 git+https://github.com/4C-multiphysics/fourcipp.git
 lnmmeshio>=5.6.3
+
+# development
+pytest
+pre-commit

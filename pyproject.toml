@@ -18,3 +18,9 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+# External tools
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = '-m "not gui"'                     # deactivate tests that require a GUI
+markers = ["gui: Tests that require a GUI."]

@@ -151,7 +151,7 @@ pyyaml==6.0.2
     #   lnmmeshio
     #   pre-commit
     #   trame
-rapidyaml==0.8.0
+rapidyaml==0.9.0
     # via fourcipp
 referencing==0.36.2
     # via

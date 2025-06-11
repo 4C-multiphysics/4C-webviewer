@@ -465,7 +465,19 @@ def _prop_value_table():
                 ),
                 key="item_key",
             ):
-                html.Td(v_text=("item_key",), classes="text-center")
+                with html.Td(classes="text-center"):
+                    with vuetify.VTooltip(location="bottom"):
+                        with html.Template(v_slot_activator="{ props }"):
+                            html.P(v_text=("item_key",), v_bind="props")
+                        html.P(
+                            v_text=(
+                                "json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['description'] || 'no description'",
+                            ),
+                            v_if=(
+                                "json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['description']",
+                            ),
+                            style="max-width: 450px;",
+                        )
                 html.Td(
                     v_if="edit_mode == all_edit_modes['view_mode']",
                     v_text=("item_val",),
@@ -507,7 +519,7 @@ def _materials_panel():
                 items=("Object.keys(materials_section)",),
             )
             # show material type
-            with html.Div(classes="d-flex align-center ga-3 mb-5 pl-5 w-full"):
+            with html.Div(classes="d-flex align-center ga-3 mb-1 pl-5 w-full"):
                 html.Span("TYPE: ", classes="text-h6")
                 # view mode: text
                 html.Span(
@@ -527,8 +539,20 @@ def _materials_panel():
                         dense=True,
                         hide_details=True,
                     )
+            html.P(
+                classes="ga-3 mb-5 pl-5 pr-5 w-full",
+                v_if=("edit_mode ==  all_edit_modes['view_mode']",),
+                v_text=(
+                    "json_schema?.properties?.MATERIALS?.items?.oneOf?"
+                    ".find(v => v.properties?.[materials_section[selected_material]?.TYPE])?.properties?"
+                    ".[materials_section[selected_material]?.TYPE]?.description || 'Error on material description'",
+                ),
+                style="color: #999;",
+            )
+
             # show relationships to other materials (linked materials
             # and master material) -> only in view mode
+
             with html.Div(
                 v_if=("edit_mode ==  all_edit_modes['view_mode']",),
             ):
@@ -569,6 +593,7 @@ def _materials_panel():
                         html.Th(
                             "Value",
                             classes="text-center font-weight-bold",
+                            style="width: 50%;",
                         )
                 with html.Tbody():
                     with html.Tr(
@@ -577,7 +602,19 @@ def _materials_panel():
                         ),
                         classes="text-center",
                     ):
-                        html.Td(v_text=("param_key",))
+                        with html.Td(classes="text-center"):
+                            with vuetify.VTooltip(location="bottom"):
+                                with html.Template(v_slot_activator="{ props }"):
+                                    html.P(v_text=("param_key",), v_bind="props")
+                                html.P(
+                                    v_text=(
+                                        "json_schema?.properties?.MATERIALS?.items?.oneOf?"
+                                        ".find(v => v.properties?.[materials_section[selected_material]?.TYPE])?"
+                                        ".properties?.[materials_section[selected_material]?.TYPE]?.properties?"
+                                        ".[param_key]?.description || 'Error on parameter description'",
+                                    ),
+                                    style="max-width: 450px;",
+                                )
                         html.Td(
                             v_text=("param_val",),
                         )

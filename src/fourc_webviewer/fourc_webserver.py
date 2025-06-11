@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pyvista as pv
+from fourcipp import CONFIG
 from trame.app import get_server
 from trame.decorators import TrameApp, change, controller
 
@@ -294,6 +295,8 @@ class FourCWebServer:
         which are handled separately. For the solvers, we take the
         approach to add them up to the main section SOLVERS.
         """
+
+        self.state.json_schema = CONFIG["json_schema"]
 
         # define substrings of section names to exclude
         substr_to_exclude = ["DESIGN", "TOPOLOGY", "ELEMENTS", "NODE", "FUNCT"]

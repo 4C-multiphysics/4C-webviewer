@@ -9,7 +9,9 @@ from pathlib import Path
 
 import numpy as np
 import pyvista as pv
+import yaml
 from fourcipp import CONFIG
+from fourcipp.fourc_input import FourCInput, ValidationError
 from trame.app import get_server
 from trame.decorators import TrameApp, change, controller
 
@@ -25,7 +27,13 @@ from fourc_webviewer.input_file_utils.io_utils import (
     read_fourc_yaml_file,
     write_fourc_yaml_file,
 )
-from fourc_webviewer.python_utils import convert_string2number, find_value_recursively
+from fourc_webviewer.python_utils import (
+    convert_string2number,
+    dict_leaves_to_number_if_schema,
+    find_value_recursively,
+    parse_validation_error_text,
+    smart_string2number_cast,
+)
 
 # always set pyvista to plot off screen with Trame
 pv.OFF_SCREEN = True
@@ -67,6 +75,9 @@ class FourCWebServer:
 
         # create temporary directory
         self._server_vars["temp_dir_object"] = tempfile.TemporaryDirectory()
+
+        # Register on_field_blur function, which is called when the user leaves a field
+        self.server.controller.on_leave_edit_field = self.on_leave_edit_field
 
         # initialize state variables for the different modes and
         # statuses of the client (e.g. view mode versus edit mode,
@@ -151,6 +162,9 @@ class FourCWebServer:
             Path(self._server_vars["temp_dir_object"].name)
             / f"new_{self.state.fourc_yaml_file['name']}"
         )
+        # dict to store input errors for the input validation
+        # imitates structure of self.state.general_sections
+        self.state.input_error_dict = {}
 
         # get state variables of the general sections
         self.init_general_sections_state_and_server_vars()
@@ -854,7 +868,6 @@ class FourCWebServer:
             self._server_vars["fourc_yaml_last_modified"],
             self._server_vars["fourc_yaml_read_in_status"],
         ) = read_fourc_yaml_file(temp_fourc_yaml_file)
-
         self._server_vars["fourc_yaml_name"] = Path(temp_fourc_yaml_file).name
 
         # set vtu file path empty to make the convert button visible
@@ -1104,6 +1117,33 @@ class FourCWebServer:
             self.state.export_status = self.state.all_export_statuses["success"]
         else:
             self.state.export_status = self.state.all_export_statuses["error"]
+
+    @change("general_sections")
+    def on_sections_change(self, general_sections, **kwargs):
+        """Reaction to change of state.general_sections."""
+
+        self.sync_server_vars_from_state()
+        try:
+            fourcinput = FourCInput(self._server_vars["fourc_yaml_content"])
+
+            dict_leaves_to_number_if_schema(fourcinput._sections)
+
+            fourcinput.validate()
+            self.state.input_error_dict = {}
+        except ValidationError as exc:
+            self.state.input_error_dict = parse_validation_error_text(
+                str(exc.args[0])
+            )  # exc.args[0] is the error message
+            return False
+
+    def on_leave_edit_field(self):
+        """Reaction to user leaving the field.
+
+        Currently only supported for the general sections.
+        """
+        # also gets called when a new file is loaded
+        # basically just sets the state based on server_vars
+        self.init_general_sections_state_and_server_vars()
 
     """ --- Other helper functions"""
 

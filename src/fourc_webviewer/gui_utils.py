@@ -249,7 +249,9 @@ def _sections_dropdown():
         items=("Object.keys(section_names)",),
     )
     vuetify.VSelect(
-        v_if=("section_names[selected_main_section_name]['subsections'].length>1"),
+        v_if=(
+            "selected_main_section_name!=selected_section_name || section_names[selected_main_section_name]['subsections'].length>1",
+        ),
         v_model=("selected_section_name",),
         items=("section_names[selected_main_section_name]['subsections']",),
     )
@@ -573,6 +575,39 @@ def _functions_panel(server):
             html.P(
                 "This type of function component cannot be currently visualized...",
                 classes="font-italic",
+            )
+
+
+def _top_row(server):
+    """Top row layout (edit mode switch and add section)."""
+    # EDIT MODE switch
+    with html.Div(classes="d-flex align-center flex-nowrap w-100", style="gap: 12px;"):
+        vuetify.VSwitch(
+            v_model=("edit_mode", "all_edit_modes['view_mode']"),
+            label=("edit_mode", "VIEW"),
+            true_value=("all_edit_modes['edit_mode']",),
+            false_value=("all_edit_modes['view_mode']",),
+            color="primary",
+            inset=True,
+            classes="ma-0",
+        )
+        # add sections on the right
+        with html.Div(
+            classes="d-inline-flex align-center ml-auto",
+            style="gap: 8px;",
+            v_if="edit_mode == all_edit_modes['edit_mode']",
+        ):
+            html.Span("Add Section:", classes="text-h6 font-weight-medium mr-3")
+            vuetify.VAutocomplete(
+                v_model=("add_section",),
+                items=(
+                    "Object.keys(json_schema['properties']).filter(key => !new Set(['MATERIALS', 'TITLE', 'CLONING MATERIAL MAP', 'RESULT DESCRIPTION']).has(key) && !(['DESIGN', 'TOPOLOGY', 'ELEMENTS', 'NODE', 'FUNCT', 'GEOMETRY'].some(n => key.includes(n))))",
+                ),
+                dense=True,
+                solo=True,
+                filterable=True,
+                classes="ma-0 flex-grow-0",
+                style="width: 200px;",
             )
 
 
@@ -1414,24 +1449,24 @@ def create_gui(server, render_window):
         with layout.drawer as drawer:
             drawer.width = 800
             with html.Div(v_if=("vtu_path != ''",)):
-                # EDIT MODE switch
-                vuetify.VSwitch(
-                    v_model=("edit_mode", "all_edit_modes['view_mode']"),
-                    label=("edit_mode", "VIEW"),
-                    true_value=("all_edit_modes['edit_mode']",),
-                    false_value=("all_edit_modes['view_mode']",),
-                    color="primary",
-                    inset=True,
-                    classes="ml-5",
-                )
-
                 # Further elements with conditional rendering (see above)
+                _top_row(server)
                 _sections_dropdown()
                 _prop_value_table(server)
                 _materials_panel()
                 _functions_panel(server)
                 _design_conditions_panel()
                 _result_description_panel()
+                vuetify.VBtn(
+                    text="DELETE SECTION",
+                    classes="mx-auto d-block mt-10",
+                    outlined=True,
+                    color="red",
+                    v_if=(
+                        "!json_schema['required'].includes(selected_section_name) && Object.keys(general_sections).includes(selected_main_section_name)",
+                    ),
+                    click=server.controller.click_delete_section_button,
+                )
             with html.Div(classes="flex-column justify-start"):
                 vuetify.VCard(
                     title="No input file content available",

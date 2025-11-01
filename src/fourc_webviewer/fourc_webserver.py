@@ -439,6 +439,7 @@ class FourCWebServer:
 
         # loop through input file sections
         self.state.general_sections = {}
+        self.state.add_section = ""
         self.state.add_key = ""  # key for the add property row
         self.state.add_value = ""  # value for the add property row
         for section_name, section_data in self._server_vars[
@@ -1058,6 +1059,97 @@ class FourCWebServer:
     #################################################
     # SELECTION CHANGES #################################
     ################################################
+    @controller.set("click_delete_section_button")
+    def click_delete_section_button(self, **kwargs):
+        """Deletes the currently selected section; if it was the last
+        subsection, delete the main too."""
+        if self.state.selected_section_name in self.state.json_schema.get(
+            "required", []
+        ):
+            return
+
+        cur_main = self.state.selected_main_section_name
+        cur_section = self.state.selected_section_name
+        if not cur_main or not cur_section:
+            return
+
+        general_sections = copy.deepcopy(self.state.general_sections) or {}
+        sections_names = copy.deepcopy(self.state.section_names) or {}
+
+        # delete the subsection's data
+        del general_sections[cur_main][cur_section]
+        self.state.general_sections = general_sections
+
+        # rebuild subsections list (new list ref -> reactive)
+        subs_before = sections_names[cur_main]["subsections"]
+        new_subs = [s for s in subs_before if s != cur_section]
+        sections_names[cur_main] = {**sections_names[cur_main], "subsections": new_subs}
+
+        if cur_section == cur_main:
+            # last one -> delete the main group immediately
+            sections_names.pop(cur_main, None)
+            general_sections.pop(cur_main, None)
+            self.state.section_names = sections_names
+            self.state.general_sections = general_sections
+
+            # choose a new valid selection
+            new_main = next(iter(sections_names.keys()), "")
+            self.state.selected_main_section_name = new_main
+            self.state.selected_section_name = (
+                sections_names[new_main]["subsections"][0]
+                if new_main and sections_names[new_main]["subsections"]
+                else ""
+            )
+            return
+
+        self.state.section_names = sections_names
+        self.state.selected_main_section_name = cur_main
+        self.state.selected_section_name = new_subs[0] if new_subs else ""
+
+    @change("add_section")
+    def change_add_section(self, **kwargs):
+        """Reaction to section selection."""
+        add_section = self.state.add_section
+        main_section_name = add_section.split("/")[0] or ""
+
+        if add_section not in self.state.json_schema.get("properties", {}):
+            return
+
+        general_sections = copy.deepcopy(self.state.general_sections) or {}
+        section_names = copy.deepcopy(self.state.section_names) or {}
+
+        # Ensure main buckets exist
+        if main_section_name not in section_names:
+            section_names[main_section_name] = {
+                "subsections": [main_section_name],
+                "content_mode": self.state.all_content_modes["general_section"],
+            }
+        if main_section_name not in general_sections:
+            general_sections[main_section_name] = {main_section_name: {}}
+
+        # Store data under main -> sub
+        if add_section not in general_sections[main_section_name]:
+            general_sections[main_section_name][add_section] = {}
+
+        # Replace subsections list with a NEW list object
+        subs = section_names[main_section_name]["subsections"]
+        if add_section not in subs:
+            subs = subs + [add_section]  # new list ref
+            section_names[main_section_name] = {
+                **section_names[main_section_name],  # keep content_mode
+                "subsections": subs,  # new list ref
+            }
+
+        # Commit (new references -> reactive)
+        self.state.general_sections = general_sections
+        self.state.section_names = section_names
+
+        # Set a valid selection so VSelect updates
+        self.state.selected_main_section_name = main_section_name
+        self.state.selected_section_name = add_section
+
+        self.state.add_section = ""
+
     @change("selected_main_section_name")
     def change_selected_main_section_name(self, selected_main_section_name, **kwargs):
         """Reaction to change of state.selected_main_section_name."""

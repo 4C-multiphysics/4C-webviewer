@@ -197,7 +197,7 @@ tzdata==2025.2
     # via pandas
 urllib3==2.6.3
     # via requests
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via pre-commit
 vtk==9.4.2
     # via

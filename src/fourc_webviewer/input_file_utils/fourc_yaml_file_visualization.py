@@ -23,7 +23,9 @@ def get_variable_names_in_funct_expression(funct_expression: str):
     regular expressions."""
     vars_found = re.findall(r"[A-Za-z_]+", funct_expression)
     return [
-        v for v in vars_found if v not in DEF_FUNCT and v not in ["t", "x", "y", "z"]
+        v
+        for v in vars_found
+        if v not in DEF_FUNCT and v not in ["t", "x", "y", "z", "e", "E"]
     ]
 
 

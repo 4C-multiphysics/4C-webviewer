@@ -519,7 +519,8 @@ class FourCGeometry:
                 if first_render:
                     self._mesh_file = Path(fourc_yaml_file).parent / self._mesh_file
                 else:
-                    self._mesh_file = self._mesh_file.resolve()
+                    self._mesh_file = (temp_dir / self._mesh_file).resolve()
+
                 if not self._mesh_file.exists():
                     raise Exception(
                         f"The mesh file {self._mesh_file} does not exist for the fourc yaml file {fourc_yaml_file}"

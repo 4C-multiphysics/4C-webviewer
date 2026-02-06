@@ -14,6 +14,11 @@ TEST_FILES = [
     / "mat_transviso_viscoplast_refJC_log_substep.4C.yaml",
     Path(__file__).parent / "files" / "tutorial_solid_exo.4C.yaml",
     Path(__file__).parent / "files" / "tutorial_solid_vtu.4C.yaml",
+    Path(__file__).parent / "files" / "constr3D_shrinking_new_struct.4C.yaml",
+    Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+    Path(__file__).parent
+    / "files"
+    / "poro_3D_hex8_new_struct_no_result_description.4C.yaml",
 ]
 
 # server variables which should be fully initialized

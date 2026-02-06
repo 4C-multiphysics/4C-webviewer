@@ -1,10 +1,8 @@
 """Input/output utilities for 4C input files."""
 
-import ast
 import copy
 import os
 import re
-from pathlib import Path
 
 from fourcipp.fourc_input import FourCInput
 from loguru import logger
@@ -257,6 +255,7 @@ def mat_specifiers():
         "GROWTH_STRATEGY",
         "FIBER_MATERIAL_ID",
         "PRESTRESS_STRATEGY",
+        "POROLAWID",
     ]
 
 

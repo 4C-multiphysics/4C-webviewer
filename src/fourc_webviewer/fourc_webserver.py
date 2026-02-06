@@ -3,7 +3,6 @@ state, synchronizes server variables, and handles PyVista rendering for the 4C
 web viewer."""
 
 import copy
-import os
 import re
 import shutil
 import tempfile
@@ -694,7 +693,12 @@ class FourCWebServer:
         )
 
         # set geometry types for the design condition
-        all_dc_geometries = ["POINT", "LINE", "SURF", "VOL"]
+        all_dc_geometries = {
+            "POINT": ["POINT", "NODE"],
+            "LINE": ["LINE"],
+            "SURF": ["SURF", "SURFACE"],
+            "VOL": ["VOL", "VOLUME"],
+        }
 
         # loop through the items, and create dict of the structure:
         #   geometry (point, line, surf, vol)
@@ -703,19 +707,32 @@ class FourCWebServer:
         #               --> design condition specification (data)
         self.state.dc_sections = {}
         for dc_type, dc_data_all_entities in design_condition_items.items():
-            # get geometry type and add it to dictionary if it is not present
+            # --> get geometry types  and add it to dictionary if it is not present
+
+            # get all components of the design condition type
             dc_type_components = dc_type.split()
-            possible_geometry_types = [
-                v for v in dc_type_components if v in all_dc_geometries
-            ]
+
+            # loop through possible geometries, and get the geometry types and the index within the condition type components
+            # (in order to manage multiple possible geometry types later on)
+            possible_geometry_types = []
+            possible_geometry_type_line_indices = []
+            for dc_geom_key, dc_geom_values in all_dc_geometries.items():
+                for dc_geom_v in dc_geom_values:
+                    if dc_geom_v in dc_type_components:
+                        possible_geometry_types.append(dc_geom_key)
+                        possible_geometry_type_line_indices.append(
+                            dc_type_components.index(dc_geom_v)
+                        )
+
             if not possible_geometry_types:
                 raise Exception(f"Did not find geometry type for {dc_type}")
-            elif len(possible_geometry_types) > 1:
-                raise Exception(
-                    f"Found {possible_geometry_types} as possible geometry types for {dc_type}! We should only have one type!"
-                )
             else:
-                geometry_type = possible_geometry_types[0]
+                # in the case where we have multiple possible geometries, we integrate the design condition under the first appearing
+                # geometry type, e.g., DESIGN SURFACE VOLUME ... is integrated under SURF
+                min_idx = possible_geometry_type_line_indices.index(
+                    min(possible_geometry_type_line_indices)
+                )
+                geometry_type = possible_geometry_types[min_idx]
                 if geometry_type not in self.state.dc_sections.keys():
                     self.state.dc_sections[geometry_type] = {}
 

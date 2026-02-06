@@ -638,9 +638,9 @@ class FourCGeometry:
                 geometry_type = "point"
             elif " LINE " in dsect_name:
                 geometry_type = "line"
-            elif " SURF " in dsect_name:
+            elif " SURF " in dsect_name or " SURFACE " in dsect_name:
                 geometry_type = "surf"
-            elif " VOL " in dsect_name:
+            elif " VOL " in dsect_name or " VOLUME " in dsect_name:
                 geometry_type = "vol"
             else:
                 raise Exception(

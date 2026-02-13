@@ -19,7 +19,18 @@ def get_arguments():
     """
     parser = argparse.ArgumentParser(description="4C Webviewer")
     parser.add_argument(
+        "--port",
+        type=int,
+        default=12345,
+        help="port to start the app on",
+    )
+    parser.add_argument(
         "--fourc_yaml_file", type=str, help="input file path to visualize"
+    )
+    parser.add_argument(
+        "--server",
+        action="store_true",
+        help="start app in server mode without opening the browser (useful for local port forwarding via ssh)",
     )
 
     args = parser.parse_args()

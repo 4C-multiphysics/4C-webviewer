@@ -51,10 +51,11 @@ pre-commit install
 
 ## Using the 4C-Webviewer
 
-To start the webviewer, in the conda environment run:
+After activating the conda environment, start the webviewer by using:
 ```
 fourc_webviewer
 ```
+
 To directly open a YAML input file use
 ```
 fourc_webviewer --fourc_yaml_file <path-to-4C-YAML-input-file>
@@ -64,6 +65,20 @@ Alternatively change to the directory of the repo. Activate the created conda en
 ```
 python main.py
 ```
+
+The webviewer can also be run in server mode on a remote machine without opening the browser:
+```
+fourc_webviewer --fourc_yaml_file <path-to-4C-YAML-input-file-on-remote-machine> --server --port 12345
+```
+Then, on your local machine, forward the bound port 12345:
+```
+ssh -N -L 12345:localhost:12345 user@remote
+```
+and open the local browser at:
+```
+http://localhost:12345
+```
+
 
 ## Dependency Management
 

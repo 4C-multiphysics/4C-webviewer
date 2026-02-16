@@ -17,6 +17,7 @@ from loguru import logger
 from trame.app import get_server
 from trame.decorators import TrameApp, change, controller
 
+from fourc_webviewer.global_variables import ALL_DC_GEOMETRIES, PV_SPHERE_FRAC_SCALE
 from fourc_webviewer.gui_utils import create_gui
 from fourc_webviewer.input_file_utils.fourc_yaml_file_visualization import (
     function_plot_figure,
@@ -24,6 +25,7 @@ from fourc_webviewer.input_file_utils.fourc_yaml_file_visualization import (
 )
 from fourc_webviewer.input_file_utils.io_utils import (
     create_file_object_for_browser,
+    get_geometry_type_of_design_condition,
     get_master_and_linked_material_indices,
     get_variable_data_by_name_in_funct_item,
     read_fourc_yaml_file,
@@ -39,10 +41,6 @@ from fourc_webviewer.read_geometry_from_file import (
     FourCGeometry,
     get_geometry_file,
 )
-
-# Global variable
-# factor which scales the spheres used to represent nodal design conditions and result descriptions with respect to the problem length scale
-PV_SPHERE_FRAC_SCALE = 1.0 / 75.0
 
 # always set pyvista to plot off screen with Trame
 pv.OFF_SCREEN = True
@@ -692,14 +690,6 @@ class FourCWebServer:
             }
         )
 
-        # set geometry types for the design condition
-        all_dc_geometries = {
-            "POINT": ["POINT", "NODE"],
-            "LINE": ["LINE"],
-            "SURF": ["SURF", "SURFACE"],
-            "VOL": ["VOL", "VOLUME"],
-        }
-
         # loop through the items, and create dict of the structure:
         #   geometry (point, line, surf, vol)
         #       --> entity (e.g. E1)
@@ -708,33 +698,13 @@ class FourCWebServer:
         self.state.dc_sections = {}
         for dc_type, dc_data_all_entities in design_condition_items.items():
             # --> get geometry types  and add it to dictionary if it is not present
+            geometry_type = get_geometry_type_of_design_condition(
+                design_condition_line=dc_type
+            )
 
-            # get all components of the design condition type
-            dc_type_components = dc_type.split()
-
-            # loop through possible geometries, and get the geometry types and the index within the condition type components
-            # (in order to manage multiple possible geometry types later on)
-            possible_geometry_types = []
-            possible_geometry_type_line_indices = []
-            for dc_geom_key, dc_geom_values in all_dc_geometries.items():
-                for dc_geom_v in dc_geom_values:
-                    if dc_geom_v in dc_type_components:
-                        possible_geometry_types.append(dc_geom_key)
-                        possible_geometry_type_line_indices.append(
-                            dc_type_components.index(dc_geom_v)
-                        )
-
-            if not possible_geometry_types:
-                raise Exception(f"Did not find geometry type for {dc_type}")
-            else:
-                # in the case where we have multiple possible geometries, we integrate the design condition under the first appearing
-                # geometry type, e.g., DESIGN SURFACE VOLUME ... is integrated under SURF
-                min_idx = possible_geometry_type_line_indices.index(
-                    min(possible_geometry_type_line_indices)
-                )
-                geometry_type = possible_geometry_types[min_idx]
-                if geometry_type not in self.state.dc_sections.keys():
-                    self.state.dc_sections[geometry_type] = {}
+            # add geometry type if is not already within the respective state variables
+            if geometry_type not in self.state.dc_sections.keys():
+                self.state.dc_sections[geometry_type] = {}
 
             # loop through conditions for the determined geometry
             for specific_bc in dc_data_all_entities:
@@ -762,7 +732,7 @@ class FourCWebServer:
         copy_dc_sections = copy.deepcopy(self.state.dc_sections)
         self.state.dc_sections = {
             dict_key: copy_dc_sections[dict_key]
-            for dict_key in all_dc_geometries
+            for dict_key in ALL_DC_GEOMETRIES
             if dict_key in copy_dc_sections
         }
 

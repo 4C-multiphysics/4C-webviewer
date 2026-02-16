@@ -54,3 +54,72 @@ def test_webvserver_vtu_conversion(fourc_yaml_file):
 
     # check whether stem matches expectation
     assert Path(vtu_path).stem == fourc_yaml_file.stem
+
+
+DESIGN_CONDITION_CHECKS = [
+    (
+        Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+        "POINT",
+        "E1",
+        "DESIGN POINT DIRICH CONDITIONS",
+    ),
+    (
+        Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+        "LINE",
+        "E1",
+        "DESIGN LINE DIRICH CONDITIONS",
+    ),
+    (
+        Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+        "LINE",
+        "E2",
+        "DESIGN LINE PORO DIRICH CONDITIONS",
+    ),
+    (
+        Path(__file__).parent / "files" / "tutorial_solid_exo.4C.yaml",
+        "SURF",
+        "E1",
+        "DESIGN SURF DIRICH CONDITIONS",
+    ),
+    (
+        Path(__file__).parent / "files" / "constr3D_shrinking_new_struct.4C.yaml",
+        "SURF",
+        "E4",
+        "DESIGN SURFACE VOLUME CONSTRAINT 3D",
+    ),
+    (
+        Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+        "SURF",
+        "E6",
+        "DESIGN SURFACE PORO PARTIAL INTEGRATION",
+    ),
+    (
+        Path(__file__).parent / "files" / "tutorial_solid_exo.4C.yaml",
+        "VOL",
+        "E1",
+        "DESIGN VOL DIRICH CONDITIONS",
+    ),
+    (
+        Path(__file__).parent / "files" / "poro_3D_hex8_new_struct.4C.yaml",
+        "VOL",
+        "E1",
+        "DESIGN VOLUME POROCOUPLING CONDITION",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "fourc_yaml_file, geometry_type, entity_id, condition_string",
+    DESIGN_CONDITION_CHECKS,
+)
+def test_webserver_state_design_conditions(
+    fourc_yaml_file, geometry_type, entity_id, condition_string
+):
+    """Test that design conditions are stored correctly within the dedicated
+    state variable."""
+    webserver = FourCWebServer(fourc_yaml_file=fourc_yaml_file)
+
+    # check whether design condition is properly stored
+    assert geometry_type in webserver.state.dc_sections
+    assert entity_id in webserver.state.dc_sections[geometry_type]
+    assert condition_string in webserver.state.dc_sections[geometry_type][entity_id]

@@ -7,6 +7,7 @@ import re
 from fourcipp.fourc_input import FourCInput
 from loguru import logger
 
+from fourc_webviewer.global_variables import ALL_DC_GEOMETRIES
 from fourc_webviewer.python_utils import flatten_list
 
 
@@ -377,3 +378,32 @@ def get_variable_data_by_name_in_funct_item(
         if "VARIABLE" in v and v["NAME"] == variable_name:
             return v
     return {}
+
+
+def get_geometry_type_of_design_condition(design_condition_line: str):
+    """Gets the geometry type, given a design condition line containing several
+    strings such as DESIGN POINT DIRICH ...
+
+    Args:
+        design_condition_line (str): design condition line
+    Returns:
+        str: geometry type based on defined global dictionary ALL_DC_GEOMETRIES
+    """
+    # get all components of the design condition type
+    dc_components = design_condition_line.split()
+
+    # loop through design condition type components, and get the FIRST geometry type appearing; the condition will be stored under this geometry type
+    geometry_type = None
+    for dc_type_c in dc_components:
+        # loop through geometry types and identify whether the current component is a geometry type
+        for dc_geom_key, dc_geom_values in ALL_DC_GEOMETRIES.items():
+            if dc_type_c in dc_geom_values:
+                geometry_type = dc_geom_key
+                break  # stop looping through geometry types
+        if geometry_type:
+            break  # stop looping through design condition type components
+    if not geometry_type:
+        logger.error(
+            f"Could not find geometry type for design condition {design_condition_line}"
+        )
+    return geometry_type

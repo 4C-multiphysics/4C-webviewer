@@ -22,10 +22,15 @@ from meshio._common import warn
 from meshio._exceptions import ReadError
 from meshio._mesh import Mesh
 
-# enabled suffixes for geometry files
-EXODUS_FILE_SUFFIXES = [".exo", ".e"]
-VTU_FILE_SUFFIXES = [".vtu"]
-SUPPORTED_GEOMETRY_FORMATS = EXODUS_FILE_SUFFIXES + VTU_FILE_SUFFIXES
+from fourc_webviewer.global_variables import (
+    ALL_DC_GEOMETRIES,
+    EXODUS_FILE_SUFFIXES,
+    SUPPORTED_GEOMETRY_FORMATS,
+    VTU_FILE_SUFFIXES,
+)
+from fourc_webviewer.input_file_utils.io_utils import (
+    get_geometry_type_of_design_condition,
+)
 
 
 def read_geom_mesh(mesh_file: Path) -> Mesh:
@@ -632,20 +637,10 @@ class FourCGeometry:
             # get condition name
             dsect_name = next(iter(dsect))
 
-            # check geometry type of condition
-            geometry_type = ""
-            if " POINT " in dsect_name:
-                geometry_type = "point"
-            elif " LINE " in dsect_name:
-                geometry_type = "line"
-            elif " SURF " in dsect_name or " SURFACE " in dsect_name:
-                geometry_type = "surf"
-            elif " VOL " in dsect_name or " VOLUME " in dsect_name:
-                geometry_type = "vol"
-            else:
-                raise Exception(
-                    "Cannot yet handle conditions without geometric references (POINT, LINE, SURF, VOL) in their condition names!"
-                )
+            # get geometry type
+            geometry_type = get_geometry_type_of_design_condition(
+                design_condition_line=dsect_name
+            )
 
             # add the corresponding nodesets for each geometry type
             for entity in dsect[dsect_name]:
@@ -678,25 +673,25 @@ class FourCGeometry:
                     )
 
                 # add point sets
-                if geometry_type == "point":
+                if geometry_type == "POINT":
                     for cond_node_id, cond_node in enumerate(all_cond_nodes):
                         self._dis.nodes[cond_node].pointnodesets.append(
                             PointNodeset(id=str(entity_number))
                             # PointNodeset(id=len(dis_exo.nodes[cond_node].pointnodesets))
                         )
-                elif geometry_type == "line":
+                elif geometry_type == "LINE":
                     for cond_node_id, cond_node in enumerate(all_cond_nodes):
                         self._dis.nodes[cond_node].linenodesets.append(
                             LineNodeset(id=str(entity_number))
                         )
 
-                elif geometry_type == "surf":
+                elif geometry_type == "SURF":
                     for cond_node_id, cond_node in enumerate(all_cond_nodes):
                         self._dis.nodes[cond_node].surfacenodesets.append(
                             SurfaceNodeset(id=str(entity_number))
                         )
 
-                elif geometry_type == "vol":
+                elif geometry_type == "VOL":
                     for cond_node_id, cond_node in enumerate(all_cond_nodes):
                         self._dis.nodes[cond_node].volumenodesets.append(
                             VolumeNodeset(id=str(entity_number))

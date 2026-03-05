@@ -3,6 +3,7 @@ state, synchronizes server variables, and handles PyVista rendering for the 4C
 web viewer."""
 
 import copy
+import json
 import re
 import shutil
 import tempfile
@@ -55,17 +56,32 @@ class FourCWebServer:
     def __init__(
         self,
         fourc_yaml_file,
+        fourc_schema_file=None,
         page_title="4C Webviewer",
     ):
         """Constructor.
 
         Args:
             fourc_yaml_file (string|Path): path to the input fourc yaml file.
+            fourc_schema_file (string|Path): path to the fourc schema json file. If not provided, the default FourCIPP schema from CONFIG.fourc_json_schema is used.
             page_title (string): page title appearing in the browser
             tab.
         """
 
         self.server = get_server()
+
+        # set 4C schema: if a file was provided, read it; otherwise take the schema provided by fourcipp
+        if fourc_schema_file:
+            # check whether the provided file is really a json schema file
+            if Path(fourc_schema_file).resolve().suffix != ".json":
+                raise ValueError(
+                    f"The provided schema file {Path(fourc_schema_file)} is not a valid json file!"
+                )
+            # read schema
+            with open(fourc_schema_file, "r", encoding="utf-8") as f:
+                self.state.fourc_json_schema = json.load(f)
+        else:
+            self.state.fourc_json_schema = CONFIG.fourc_json_schema
 
         # initialize include upload value: False (bottom sheet with include upload is not displayed until there is a fourcyaml file uploaded)
         self.state.include_upload_open = False
@@ -103,7 +119,10 @@ class FourCWebServer:
             self._server_vars["fourc_yaml_size"],
             self._server_vars["fourc_yaml_last_modified"],
             self._server_vars["fourc_yaml_read_in_status"],
-        ) = read_fourc_yaml_file(fourc_yaml_file)
+        ) = read_fourc_yaml_file(
+            fourc_yaml_file=fourc_yaml_file,
+            fourc_json_schema=self.state.fourc_json_schema,
+        )
 
         if self._server_vars["fourc_yaml_read_in_status"]:
             self.state.read_in_status = self.state.all_read_in_statuses["success"]
@@ -329,20 +348,26 @@ class FourCWebServer:
         # get mesh of the selected material
         self._actors["material_meshes"] = {}
         for material in self.state.materials_section.keys():
-            # get meshes of materials
+            # get mesh of specific material
             master_mat_ind = self.determine_master_mat_ind_for_material(material)
-
-            self._actors["material_meshes"][material] = self._server_vars[
-                "render_window"
-            ].add_mesh(
-                problem_mesh.threshold(
-                    value=(master_mat_ind - 0.05, master_mat_ind + 0.05),
-                    scalars="element-material",
-                ),
-                color="darkorange",
-                opacity=0.7,
-                render=False,
+            master_mat_mesh = problem_mesh.threshold(
+                value=(master_mat_ind - 0.05, master_mat_ind + 0.05),
+                scalars="element-material",
             )
+
+            # determine whether this material has no assigned nodes
+            if len(master_mat_mesh.points) == 0:
+                self._actors["material_meshes"][material] = None
+
+            else:
+                self._actors["material_meshes"][material] = self._server_vars[
+                    "render_window"
+                ].add_mesh(
+                    master_mat_mesh,
+                    color="darkorange",
+                    opacity=0.7,
+                    render=False,
+                )
 
         all_dc_entities = [
             {"entity": k, "geometry_type": sec_name}
@@ -441,16 +466,21 @@ class FourCWebServer:
             ].SetVisibility(True)
             legend_items.append(("Selected design condition", "navy"))
 
-        for mat in self._actors.get("material_meshes", {}).values():
-            mat.SetVisibility(False)
+        for mat_mesh in self._actors.get("material_meshes", {}).values():
+            if (
+                mat_mesh is not None
+            ):  # set visibility as false for existing material meshes
+                mat_mesh.SetVisibility(False)
         if (
             self.state.selected_material
             and self.state.selected_main_section_name == "MATERIALS"
         ):
-            self._actors["material_meshes"][self.state.selected_material].SetVisibility(
-                True
-            )
-            legend_items.append(("Selected material", "orange"))
+            # only visualize material if it really has an assigned mesh
+            if self._actors["material_meshes"][self.state.selected_material]:
+                self._actors["material_meshes"][
+                    self.state.selected_material
+                ].SetVisibility(True)
+                legend_items.append(("Selected material", "orange"))
 
         self._server_vars["render_window"].remove_legend()
         if legend_items:
@@ -474,8 +504,6 @@ class FourCWebServer:
         which are handled separately. For the solvers, we take the
         approach to add them up to the main section SOLVERS.
         """
-
-        self.state.json_schema = CONFIG.fourc_json_schema
 
         # define substrings of section names to exclude
         substr_to_exclude = [
@@ -1166,7 +1194,10 @@ class FourCWebServer:
             self._server_vars["fourc_yaml_size"],
             self._server_vars["fourc_yaml_last_modified"],
             self._server_vars["fourc_yaml_read_in_status"],
-        ) = read_fourc_yaml_file(temp_fourc_yaml_file)
+        ) = read_fourc_yaml_file(
+            fourc_yaml_file=temp_fourc_yaml_file,
+            fourc_json_schema=self.state.fourc_json_schema,
+        )
         self._server_vars["fourc_yaml_name"] = Path(temp_fourc_yaml_file).name
 
         if self._server_vars["fourc_yaml_read_in_status"]:
@@ -1249,7 +1280,7 @@ class FourCWebServer:
     def click_delete_section_button(self, **kwargs):
         """Deletes the currently selected section; if it was the last
         subsection, delete the main too."""
-        if self.state.selected_section_name in self.state.json_schema.get(
+        if self.state.selected_section_name in self.state.fourc_json_schema.get(
             "required", []
         ):
             return
@@ -1298,7 +1329,7 @@ class FourCWebServer:
         add_section = self.state.add_section
         main_section_name = add_section.split("/")[0] or ""
 
-        if add_section not in self.state.json_schema.get("properties", {}):
+        if add_section not in self.state.fourc_json_schema.get("properties", {}):
             return
 
         general_sections = copy.deepcopy(self.state.general_sections) or {}
@@ -1551,7 +1582,9 @@ class FourCWebServer:
 
         # dump content to the defined export file
         self._server_vars["fourc_yaml_file_write_status"] = write_fourc_yaml_file(
-            self._server_vars["fourc_yaml_content"], self.state.export_fourc_yaml_path
+            fourc_yaml_content=self._server_vars["fourc_yaml_content"],
+            new_fourc_yaml_file=self.state.export_fourc_yaml_path,
+            fourc_json_schema=self.state.fourc_json_schema,
         )
 
         # check write status
@@ -1570,7 +1603,7 @@ class FourCWebServer:
 
             dict_leaves_to_number_if_schema(fourcinput._sections)
 
-            fourcinput.validate()
+            fourcinput.validate(json_schema=self.state.fourc_json_schema)
             self.state.input_error_dict = {}
         except ValidationError as exc:
             self.state.input_error_dict = parse_validation_error_text(

@@ -28,6 +28,11 @@ def get_arguments():
         "--fourc_yaml_file", type=str, help="input file path to visualize"
     )
     parser.add_argument(
+        "--fourc_schema_file",
+        type=str,
+        help="path to schema file to be used for validation (optional: if not specified, the schema from fourcipp is used)",
+    )
+    parser.add_argument(
         "--server",
         action="store_true",
         help="start app in server mode without opening the browser (useful for local port forwarding via ssh)",

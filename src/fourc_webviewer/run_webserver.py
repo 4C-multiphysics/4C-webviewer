@@ -4,13 +4,14 @@ from fourc_webviewer.fourc_webserver import FourCWebServer
 from fourc_webviewer_default_files import DEFAULT_INPUT_FILE
 
 
-def run_webviewer(port, fourc_yaml_file=None, server=None):
+def run_webviewer(port, fourc_yaml_file=None, fourc_schema_file=None, server=None):
     """Runs the webviewer by creating a dedicated webserver object, starting it
     and cleaning up afterwards.
 
     Args:
         port (int): Port number to start the server on.
         fourc_yaml_file (str|Path, optional): Path to the input fourc yaml file. If None, the default input file is used.
+        fourc_schema_file (str|Path, optional): Path to the fourc schema json file.
         server (bool, optional): If True, runs in server mode without opening a browser. Useful for SSH port forwarding.
     """
 
@@ -18,7 +19,9 @@ def run_webviewer(port, fourc_yaml_file=None, server=None):
     if fourc_yaml_file is None:
         fourc_yaml_file = DEFAULT_INPUT_FILE
 
-    fourc_webserver = FourCWebServer(fourc_yaml_file)
+    fourc_webserver = FourCWebServer(
+        fourc_yaml_file, fourc_schema_file=fourc_schema_file
+    )
 
     # start the server after everything is set up
     if not (1 <= port <= 65535):

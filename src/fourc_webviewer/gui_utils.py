@@ -648,7 +648,7 @@ def _top_row(server):
             vuetify.VAutocomplete(
                 v_model=("add_section",),
                 items=(
-                    "Object.keys(json_schema['properties']).filter(key => !new Set(['MATERIALS', 'TITLE', 'CLONING MATERIAL MAP', 'RESULT DESCRIPTION']).has(key) && !(['DESIGN', 'TOPOLOGY', 'ELEMENTS', 'NODE', 'FUNCT', 'GEOMETRY'].some(n => key.includes(n))))",
+                    "Object.keys(fourc_json_schema['properties']).filter(key => !new Set(['MATERIALS', 'TITLE', 'CLONING MATERIAL MAP', 'RESULT DESCRIPTION']).has(key) && !(['DESIGN', 'TOPOLOGY', 'ELEMENTS', 'NODE', 'FUNCT', 'GEOMETRY'].some(n => key.includes(n))))",
                 ),
                 dense=True,
                 solo=True,
@@ -689,7 +689,7 @@ def _prop_value_table(server):
             ):
                 with html.Td(classes="text-center pa-0", style="position: relative;"):
                     with vuetify.VBtn(
-                        v_if="edit_mode == all_edit_modes['edit_mode'] && !json_schema['properties']?.[selected_section_name]?.['required']?.includes(item_key)",
+                        v_if="edit_mode == all_edit_modes['edit_mode'] && !fourc_json_schema['properties']?.[selected_section_name]?.['required']?.includes(item_key)",
                         tag="a",
                         v_bind="{...props, target: '_blank'}",
                         click=(server.controller.delete_row, "[item_key]"),
@@ -709,7 +709,7 @@ def _prop_value_table(server):
                             html.Span(v_text=("item_key",), v_bind="props")
                         html.P(
                             v_text=(
-                                "json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['description'] || 'no description'",
+                                "fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['description'] || 'no description'",
                             ),
                             style="max-width: 450px;",
                         )
@@ -729,10 +729,10 @@ def _prop_value_table(server):
                             "general_sections[selected_main_section_name][selected_section_name][item_key]",  # binding item_val directly does not work, since Object.entries(...) creates copies for the mutable objects
                         ),
                         v_if=(
-                            "(json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'string' "
-                            "|| json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'number' "
-                            "|| json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'integer')"
-                            "&& !json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['enum']"
+                            "(fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'string' "
+                            "|| fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'number' "
+                            "|| fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] == 'integer')"
+                            "&& !fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['enum']"
                         ),
                         blur=server.controller.on_leave_edit_field,
                         update_modelValue="flushState('general_sections')",  # this is required in order to flush the state changes correctly to the server, as our passed on v-model is a nested variable
@@ -747,7 +747,7 @@ def _prop_value_table(server):
                     # if item is a boolean -> use VSwitch
                     with html.Div(
                         v_if=(
-                            "json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] === 'boolean'"
+                            "fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[item_key]?.['type'] === 'boolean'"
                         ),
                         classes="d-flex align-center justify-center",
                     ):
@@ -769,13 +769,13 @@ def _prop_value_table(server):
                                 "[selected_section_name][item_key]"
                             ),
                             v_if=(
-                                "json_schema['properties']?.[selected_section_name]"
+                                "fourc_json_schema['properties']?.[selected_section_name]"
                                 "?.['properties']?.[item_key]?.['enum']"
                             ),
                             update_modelValue="flushState('general_sections')",
                             # bind the enum array as items
                             items=(
-                                "json_schema['properties'][selected_section_name]['properties'][item_key]['enum']",
+                                "fourc_json_schema['properties'][selected_section_name]['properties'][item_key]['enum']",
                             ),
                             dense=True,
                             solo=True,
@@ -812,7 +812,7 @@ def _prop_value_table(server):
                         update_modelValue="flushState('general_sections')",
                         # bind the enum array as items
                         items=(
-                            "Object.keys(json_schema['properties']?.[selected_section_name]?.['properties'])",
+                            "Object.keys(fourc_json_schema['properties']?.[selected_section_name]?.['properties'])",
                         ),
                         dense=True,
                         solo=True,
@@ -831,10 +831,10 @@ def _prop_value_table(server):
                     vuetify.VTextField(
                         v_model=("add_value",),
                         v_if=(
-                            "(json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'string' "
-                            "|| json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'number' "
-                            "|| json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'integer')"
-                            "&& !json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['enum']"
+                            "(fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'string' "
+                            "|| fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'number' "
+                            "|| fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] == 'integer')"
+                            "&& !fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['enum']"
                         ),
                         update_modelValue="flushState('add_value')",  # this is required in order to flush the state changes correctly to the server, as our passed on v-model is a nested variable
                         classes="w-80 pb-1",
@@ -849,7 +849,7 @@ def _prop_value_table(server):
                     # if item is a boolean -> use VSwitch
                     with html.Div(
                         v_if=(
-                            "json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] === 'boolean'"
+                            "fourc_json_schema['properties']?.[selected_section_name]?.['properties']?.[add_key]?.['type'] === 'boolean'"
                         ),
                         classes="d-flex align-center justify-center",
                     ):
@@ -865,13 +865,13 @@ def _prop_value_table(server):
                         vuetify.VAutocomplete(
                             v_model=("add_value"),
                             v_if=(
-                                "json_schema['properties']?.[selected_section_name]"
+                                "fourc_json_schema['properties']?.[selected_section_name]"
                                 "?.['properties']?.[add_key]?.['enum']"
                             ),
                             update_modelValue="flushState('add_value')",
                             # bind the enum array as items
                             items=(
-                                "json_schema['properties'][selected_section_name]['properties'][add_key]['enum']",
+                                "fourc_json_schema['properties'][selected_section_name]['properties'][add_key]['enum']",
                             ),
                             dense=True,
                             solo=True,
@@ -931,7 +931,7 @@ def _materials_panel():
                 classes="ga-3 mb-5 pl-5 pr-5 w-full",
                 v_if=("edit_mode ==  all_edit_modes['view_mode']",),
                 v_text=(
-                    "json_schema?.properties?.MATERIALS?.items?.oneOf?"
+                    "fourc_json_schema?.properties?.MATERIALS?.items?.oneOf?"
                     ".find(v => v.properties?.[materials_section[selected_material]?.TYPE])?.properties?"
                     ".[materials_section[selected_material]?.TYPE]?.description || 'Error on material description'",
                 ),
@@ -996,7 +996,7 @@ def _materials_panel():
                                     html.P(v_text=("param_key",), v_bind="props")
                                 html.P(
                                     v_text=(
-                                        "json_schema?.properties?.MATERIALS?.items?.oneOf?"
+                                        "fourc_json_schema?.properties?.MATERIALS?.items?.oneOf?"
                                         ".find(v => v.properties?.[materials_section[selected_material]?.TYPE])?"
                                         ".properties?.[materials_section[selected_material]?.TYPE]?.properties?"
                                         ".[param_key]?.description || 'Error on parameter description'",
@@ -1511,7 +1511,7 @@ def create_gui(server, render_window):
                     outlined=True,
                     color="red",
                     v_if=(
-                        "!json_schema['required'].includes(selected_section_name) && Object.keys(general_sections).includes(selected_main_section_name)",
+                        "!fourc_json_schema['required'].includes(selected_section_name) && Object.keys(general_sections).includes(selected_main_section_name)",
                     ),
                     click=server.controller.click_delete_section_button,
                 )

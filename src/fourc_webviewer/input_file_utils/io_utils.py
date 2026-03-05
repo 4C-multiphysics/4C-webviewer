@@ -11,13 +11,14 @@ from fourc_webviewer.global_variables import ALL_DC_GEOMETRIES
 from fourc_webviewer.python_utils import flatten_list
 
 
-def read_fourc_yaml_file(fourc_yaml_file):
+def read_fourc_yaml_file(fourc_yaml_file, fourc_json_schema):
     """Read in a given fourc yaml file. Validation is performed within the
     function.
 
     Args:
         fourc_yaml_file (str | Path): path to the fourc yaml file to be
         read.
+        fourc_json_schema (dict): utilized 4C schema
 
     Returns:
         tuple: A tuple containing the following elements:
@@ -37,7 +38,7 @@ def read_fourc_yaml_file(fourc_yaml_file):
         fourc_yaml_content.load_includes()
 
         # validate 4C yaml file
-        fourc_yaml_content.validate()
+        fourc_yaml_content.validate(json_schema=fourc_json_schema)
     except Exception as exc:
         logger.error(exc)  # currently, we throw the exception as terminal output
         return (FourCInput({}), [], 0, 0, False)
@@ -60,7 +61,7 @@ def read_fourc_yaml_file(fourc_yaml_file):
     )
 
 
-def write_fourc_yaml_file(fourc_yaml_content, new_fourc_yaml_file):
+def write_fourc_yaml_file(fourc_yaml_content, new_fourc_yaml_file, fourc_json_schema):
     """Writes given content to a fourc yaml file upon validation.
 
     Args:
@@ -68,6 +69,7 @@ def write_fourc_yaml_file(fourc_yaml_content, new_fourc_yaml_file):
         file.
         new_fourc_yaml_file (str | Path): path of the new file to write
         the content to.
+        fourc_json_schema (dict): utilized 4C schema
 
     Returns:
         bool: status of the file writing process. True means that the
@@ -76,7 +78,7 @@ def write_fourc_yaml_file(fourc_yaml_content, new_fourc_yaml_file):
 
     # validate content
     try:
-        fourc_yaml_content.validate()
+        fourc_yaml_content.validate(json_schema=fourc_json_schema)
     except Exception as exc:
         logger.error(exc)  # currently, we throw the exception as terminal output
         return False

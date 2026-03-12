@@ -3,9 +3,11 @@
 https://github.com/nschloe/meshio/blob/main/src/meshio/exodus/_exodus.py
 """
 
+import copy
 import re
 from pathlib import Path
 
+import meshio
 import numpy as np
 from fourcipp.fourc_input import FourCInput
 from lnmmeshio import read, read_mesh, write
@@ -180,6 +182,63 @@ def switch_node_order(mesh_exo: Mesh) -> Mesh:
     return copy_mesh_exo
 
 
+def redistribute_mesh_cells(mesh: Mesh) -> Mesh:
+    """If mesh data contains several block ids, but the mesh only contains a
+    single cell block, this function redistributes mesh cells and their data
+    into dedicated blocks specified with the block ids.
+
+    Args:
+        mesh: input mesh
+    Returns:
+        Mesh: mesh with redistributed mesh cells
+    """
+    out_mesh = copy.deepcopy(mesh)
+
+    if "block_id" in mesh.cell_data:
+        cell_data_block_id = out_mesh.cell_data["block_id"][0]
+
+        # get all unique block ids
+        unique_block_ids = np.unique(cell_data_block_id)
+
+        # if mesh.cells has one block, but the number of identified blocks based on block_id is higher: save all elements, and redistribute them within mesh.cells according to their block_id
+        redistribute_cells = False
+        saved_mesh_cells = None
+        if len(mesh.cells) == 1 and len(unique_block_ids) > 1:
+            redistribute_cells = True
+            saved_mesh_cells = copy.deepcopy(mesh.cells[0])
+            # reset mesh cells and their data
+            out_mesh.cells = []
+            for k, v in out_mesh.cell_data.items():
+                out_mesh.cell_data[k] = []
+
+        # loop through the block ids and restructure the mesh containers
+        for bid in unique_block_ids:
+            # extract indices of cells where block_id matches the currently considered block id <bid>
+            matching_cell_indices = np.where(cell_data_block_id == bid)[0]
+
+            # reformulation: cell block of the mesh (along with cell data) must be consistent with the cell_sets
+            if redistribute_cells:
+                # consistency check: were the mesh cells saved?
+                if saved_mesh_cells is None:
+                    raise Exception("The mesh cells were not saved!")
+
+                # extract all cells with this block id
+                extracted_cells = saved_mesh_cells.data[matching_cell_indices]
+                # create cell block from these cells
+                out_mesh.cells.append(
+                    meshio.CellBlock(
+                        cell_type=saved_mesh_cells.type, data=extracted_cells
+                    )
+                )
+                # consistently update cell data
+                for k, v in mesh.cell_data.items():
+                    out_mesh.cell_data[k].append(
+                        np.array(mesh.cell_data[k][0][matching_cell_indices])
+                    )
+
+    return out_mesh
+
+
 def postprocess_exo_mesh(mesh: Mesh) -> Mesh:
     """Postprocessing steps for the read-in Exodus mesh.
 
@@ -188,8 +247,10 @@ def postprocess_exo_mesh(mesh: Mesh) -> Mesh:
     Returns:
         Mesh: postprocessed read-in Exodus mesh
     """
+    switched_node_order_mesh = switch_node_order(mesh_exo=mesh)
+    redistributed_cells_mesh = redistribute_mesh_cells(mesh=switched_node_order_mesh)
 
-    return switch_node_order(mesh_exo=mesh)
+    return redistributed_cells_mesh
 
 
 def postprocess_vtu_mesh(mesh: Mesh) -> Mesh:
@@ -225,9 +286,11 @@ def postprocess_vtu_mesh(mesh: Mesh) -> Mesh:
 
         # loop through unique block ids and create their respective cell sets
         for bid in unique_block_ids:
-            copy_mesh.cell_sets[str(int(bid))] = np.where(cell_data_block_id == bid)[0]
+            # extract indices of cells where block_id matches the currently considered block id <bid>
+            matching_cell_indices = np.where(cell_data_block_id == bid)[0]
+            copy_mesh.cell_sets[str(int(bid))] = matching_cell_indices
 
-    return copy_mesh
+    return redistribute_mesh_cells(copy_mesh)
 
 
 def _categorize(names):

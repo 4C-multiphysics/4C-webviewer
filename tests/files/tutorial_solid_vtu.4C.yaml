@@ -73,8 +73,9 @@ MATERIALS:
     ELAST_VolSussmanBathe:
       KAPPA: 720
   - MAT: 129
-    MIX_Prestress_Strategy_Constant:
-      PRESTRETCH: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    MIX_Prestress_Strategy_Prescribed:
+      PRESTRETCH:
+        constant: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 
 DESIGN VOL DIRICH CONDITIONS:
   - E: 1

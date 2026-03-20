@@ -7,12 +7,12 @@ plotly
 pandas
 pyvista
 vtk==9.4.2
-numpy
+numpy>=1.24,<2.4
 fourcipp
 lnmmeshio>=5.6.3
 numexpr
 netCDF4
-
+scipy
 
 # development
 pytest

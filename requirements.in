@@ -1,5 +1,5 @@
 trame
-trame-vuetify
+trame-vuetify==3.1.0
 trame-vtk
 trame-components
 trame-plotly

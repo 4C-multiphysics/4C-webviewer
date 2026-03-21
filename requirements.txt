@@ -44,7 +44,7 @@ filelock==3.25.2
     #   virtualenv
 fonttools==4.62.1
     # via matplotlib
-fourcipp==1.75.0
+fourcipp==1.77.0
     # via -r requirements.in
 frozenlist==1.8.0
     # via
@@ -205,7 +205,7 @@ trame-server==3.10.0
     # via trame
 trame-vtk==2.11.3
     # via -r requirements.in
-trame-vuetify==3.2.1
+trame-vuetify==3.1.0
     # via -r requirements.in
 typing-extensions==4.15.0
     # via

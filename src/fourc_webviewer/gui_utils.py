@@ -1478,6 +1478,300 @@ def _result_description_panel():
                         )
 
 
+def _info_icon(text):
+    """Simple info icon with tooltip."""
+    with vuetify.VTooltip(location="top"):
+        with html.Template(v_slot_activator="{ props }"):
+            vuetify.VIcon("mdi-information", size="small", color="grey", v_bind="props")
+        html.Span(text)
+
+
+def _fibers_panel(server):
+    """Fibers panel layout."""
+
+    with html.Div(
+        v_if=(
+            "section_names[selected_main_section_name]['content_mode'] == all_content_modes['fibers_section']"
+        ),
+    ):
+        with vuetify.VCard(classes="mb-4 my-4 mx-2", outlined=True):
+            vuetify.VCardTitle("Fiber visualization", classes="text-h6")
+            with vuetify.VCardText():
+                vuetify.VSwitch(
+                    v_model=("fiber_visibility",),
+                    label="Show fiber vectors",
+                    dense=True,
+                    hide_details=True,
+                    classes="mb-2",
+                    color=("fiber_visibility ? 'green' : 'grey'",),
+                )
+
+                with html.Div(v_if=("fiber_visibility",)):
+                    vuetify.VSelect(
+                        v_model=("selected_fiber_array",),
+                        items=("available_fiber_arrays",),
+                        label="Select fiber field",
+                        dense=True,
+                        outlined=True,
+                        hide_details=True,
+                        classes="mb-4",
+                    )
+
+                    # Method selection
+                    with html.Div(
+                        style="display: flex; align-items: center; margin-bottom: 8px;"
+                    ):
+                        html.Span("Visualization method", classes="text-caption")
+
+                        vuetify.VIcon(
+                            "mdi-information",
+                            x_small=True,
+                            color="primary",
+                            style="margin-left: 4px; cursor: pointer;",
+                            click="fiber_info_dialog = true",
+                        )
+
+                    vuetify.VSelect(
+                        v_model=("selected_fiber_method",),
+                        items=(
+                            "['Slice-based', 'Mesh-based', 'Grid-based with resolution control']",
+                        ),
+                        dense=True,
+                        outlined=True,
+                        hide_details=True,
+                        classes="mb-4",
+                    )
+
+                    html.Span("Vector scale", classes="text-caption")
+                    vuetify.VSlider(
+                        v_model=("fiber_scale",),
+                        min=0.1,
+                        max=10,
+                        step=0.5,
+                        dense=True,
+                        hide_details=True,
+                        thumb_label=True,
+                        classes="mb-2",
+                    )
+
+                    # SLICE-BASED CONTROLS
+
+                    with html.Div(v_if=("selected_fiber_method == 'Slice-based'",)):
+                        # Slice axis selection
+                        with html.Div(classes="d-flex align-center mb-1"):
+                            html.Span("Slice direction", classes="text-caption")
+                            _info_icon("Axis along which slices are created")
+
+                        # VRadioGroup
+                        with vuetify.VRadioGroup(
+                            v_model=("fiber_slice_axis",),
+                            row=True,
+                            dense=True,
+                            hide_details=True,
+                            classes="mb-3",
+                        ):
+                            vuetify.VRadio(
+                                label="Longest axis",
+                                value="longest",
+                            )
+                            vuetify.VRadio(
+                                label="X-axis",
+                                value="x",
+                            )
+                            vuetify.VRadio(
+                                label="Y-axis",
+                                value="y",
+                            )
+                            vuetify.VRadio(
+                                label="Z-axis",
+                                value="z",
+                            )
+
+                        # Slice density control
+                        with html.Div(classes="d-flex align-center mb-1"):
+                            html.Span(
+                                "Slice density: {{ fiber_slice_density.toFixed(2) }}",
+                                classes="text-caption",
+                            )
+                            _info_icon("Number of slices")
+
+                        vuetify.VSlider(
+                            v_model=("fiber_slice_density",),
+                            min=0.01,
+                            max=1.0,
+                            step=0.01,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-4",
+                        )
+
+                        # Vector density control
+                        with html.Div(classes="d-flex align-center mb-1"):
+                            html.Span(
+                                "Vector density: {{ fiber_vector_density.toFixed(2) }}",
+                                classes="text-caption",
+                            )
+                            _info_icon("Number of arrows per slice")
+                        vuetify.VSlider(
+                            v_model=("fiber_vector_density",),
+                            min=0.01,
+                            max=1.0,
+                            step=0.01,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-4",
+                        )
+
+                        with html.Div(classes="d-flex align-center mb-1"):
+                            html.Span(
+                                "Tolerance: {{ fiber_tolerance.toFixed(2) }}",
+                                classes="text-caption",
+                            )
+                            _info_icon("Distance from slice to capture points")
+                        vuetify.VSlider(
+                            v_model=("fiber_tolerance",),
+                            min=0.01,
+                            max=0.5,
+                            step=0.01,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                        )
+
+                        # Optional: Show slice planes
+                        vuetify.VSwitch(
+                            v_model=("show_slice_planes",),
+                            label="Show slice planes",
+                            dense=True,
+                            hide_details=True,
+                            classes="mb-2",
+                            color=("show_slice_planes ? 'green' : 'grey'",),
+                        )
+
+                    # MESH-BASED CONTROLS
+
+                    with html.Div(v_if=("selected_fiber_method == 'Mesh-based'",)):
+                        html.Span("Density", classes="text-caption")
+                        vuetify.VSlider(
+                            v_model=("fiber_density",),
+                            min=0.0,
+                            max=1.0,
+                            step=0.01,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-2",
+                        )
+
+                    # GRID-BASED CONTROLS
+
+                    with html.Div(
+                        v_if=(
+                            "selected_fiber_method == 'Grid-based with resolution control'",
+                        )
+                    ):
+                        html.Div("Grid Resolution", classes="text-subtitle-2 mb-2")
+
+                        # Live resolution display
+                        html.Div(
+                            v_text=(
+                                "'Current resolution: ' + "
+                                "fiber_res_x + ' × ' + fiber_res_y + ' × ' + fiber_res_z"
+                            ),
+                            classes="text-caption mb-3",
+                        )
+
+                        html.Span("Resolution in X-direction", classes="text-caption")
+                        vuetify.VSlider(
+                            v_model=("fiber_res_x",),
+                            min=1,
+                            max=100,
+                            step=1,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-2",
+                        )
+
+                        html.Span("Resolution in Y-direction", classes="text-caption")
+                        vuetify.VSlider(
+                            v_model=("fiber_res_y",),
+                            min=1,
+                            max=100,
+                            step=1,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-2",
+                        )
+
+                        html.Span("Resolution in Z-direction", classes="text-caption")
+                        vuetify.VSlider(
+                            v_model=("fiber_res_z",),
+                            min=1,
+                            max=100,
+                            step=1,
+                            dense=True,
+                            hide_details=True,
+                            thumb_label=True,
+                            classes="mb-2",
+                        )
+
+            with vuetify.VDialog(
+                v_model=("fiber_info_dialog", False),
+                width="400",
+            ):
+                with vuetify.VCard():
+                    vuetify.VCardTitle(
+                        "Fiber visualization methods",
+                        classes="text-h6",
+                    )
+                    with vuetify.VCardText():
+                        html.Div("• Slice-based:", classes="font-weight-medium")
+                        html.Div(
+                            "Fibers shown at slices across the geometry in the direction of the chosen axis.",
+                            classes="text-caption pl-2 mb-2",
+                        )
+                        html.Div(
+                            "Robust, for various geometries.",
+                            classes="text-caption pl-2 mb-3",
+                        )
+
+                        html.Div("• Mesh-based:", classes="font-weight-medium")
+                        html.Div(
+                            "Fibers shown at actual mesh points; Data sampled from the geometry file at regular intervals based on mesh point indices.",
+                            classes="text-caption pl-2 mb-2",
+                        )
+                        html.Div(
+                            "Faster, follows natural mesh distribution.",
+                            classes="text-caption pl-2 mb-3",
+                        )
+
+                        html.Div(
+                            "• Grid-based with resolution control:",
+                            classes="font-weight-medium",
+                        )
+                        html.Div(
+                            "Fibers shown at the points of a 3D grid defined by the geometry size and surrounding the mesh.",
+                            classes="text-caption pl-2 mb-2",
+                        )
+                        html.Div(
+                            "Slower but allows for resolution adjustment.",
+                            classes="text-caption pl-2 mb-3",
+                        )
+
+                    with vuetify.VCardActions():
+                        vuetify.VSpacer()
+                        vuetify.VBtn(
+                            "Close",
+                            color="primary",
+                            text=True,
+                            click="fiber_info_dialog = false",
+                        )
+
+
 def create_gui(server, render_window):
     """Creates the graphical user interface based on the defined layout
     elements."""
@@ -1505,6 +1799,8 @@ def create_gui(server, render_window):
                 _functions_panel(server)
                 _design_conditions_panel()
                 _result_description_panel()
+                _fibers_panel(server)
+
                 vuetify.VBtn(
                     text="DELETE SECTION",
                     classes="mx-auto d-block mt-10",

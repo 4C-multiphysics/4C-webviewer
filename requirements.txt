@@ -117,7 +117,7 @@ packaging==26.0
     #   pytest
 pandas==3.0.1
     # via -r requirements.in
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   matplotlib
     #   pyvista

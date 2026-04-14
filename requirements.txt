@@ -146,7 +146,7 @@ pygments==2.20.0
     #   rich
 pyparsing==3.3.2
     # via matplotlib
-pytest==9.0.2
+pytest==9.0.3
     # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via

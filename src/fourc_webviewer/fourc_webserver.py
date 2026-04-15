@@ -15,10 +15,15 @@ from fourcipp import CONFIG
 from fourcipp.fourc_input import FourCInput, ValidationError
 from fourcipp.utils.yaml_io import load_yaml
 from loguru import logger
+from scipy.spatial import KDTree
 from trame.app import get_server
 from trame.decorators import TrameApp, change, controller
 
-from fourc_webviewer.global_variables import ALL_DC_GEOMETRIES, PV_SPHERE_FRAC_SCALE
+from fourc_webviewer.global_variables import (
+    ALL_DC_GEOMETRIES,
+    PV_SLICE_PLANE_SIZE_FRAC,
+    PV_SPHERE_FRAC_SCALE,
+)
 from fourc_webviewer.gui_utils import create_gui
 from fourc_webviewer.input_file_utils.fourc_yaml_file_visualization import (
     function_plot_figure,
@@ -207,6 +212,8 @@ class FourCWebServer:
             }
             for k, v in self.state.general_sections.items()
         }
+        self.state.section_names.pop("fields", None)
+        self.state.general_sections.pop("fields", None)
 
         # get state variables of the material section
         self.state.section_names["MATERIALS"] = {
@@ -235,6 +242,8 @@ class FourCWebServer:
             "content_mode": self.state.all_content_modes["funct_section"],
         }
         self.init_funct_state_and_server_vars()
+
+        self.init_fiber_state_and_server_vars()
 
         # set initial section selection
         self.state.selected_main_section_name = list(self.state.section_names.keys())[0]
@@ -268,9 +277,11 @@ class FourCWebServer:
         pyvista mesh.
 
         Args:
-            pv_mesh (pyvista.UnstructuredGrid): geometry mesh
+            pv_mesh (pv.DataSet): Input PyVista mesh, typically an
+                `UnstructuredGrid`.
+
         Returns:
-            float: maximum coordinate bound difference in 3-dimensions
+            float: Largest bounding-box dimension of the mesh.
         """
 
         # get maximum bound difference as the problem length scale
@@ -326,6 +337,8 @@ class FourCWebServer:
         )
         self.state.vtu_path = fourc_geometry.vtu_file_path
 
+        self._server_vars.pop("fiber_point_cache", None)
+
         # render window initialization: to be done only once while starting the webviewer, otherwise no proper binding within the current setup!
         if "render_window" not in self._server_vars:
             self._server_vars["render_window"] = pv.Plotter()
@@ -344,6 +357,19 @@ class FourCWebServer:
             .add_mesh(problem_mesh, color="bisque", opacity=0.2, render=False)
             .mapper.dataset
         )
+
+        # Detect fiber arrays
+        fiber_arrays = []
+        for name in problem_mesh.point_data.keys():
+            if "fiber" in name.lower():
+                fiber_arrays.append(name)
+        for name in problem_mesh.cell_data.keys():
+            if "fiber" in name.lower():
+                fiber_arrays.append(name)
+
+        self.state.available_fiber_arrays = sorted(list(set(fiber_arrays)))
+        if self.state.available_fiber_arrays:
+            self.state.selected_fiber_array = self.state.available_fiber_arrays[0]
 
         # get mesh of the selected material
         self._actors["material_meshes"] = {}
@@ -432,6 +458,683 @@ class FourCWebServer:
         self.update_pyvista_render_objects()
 
         self._server_vars["render_window"].reset_camera()
+
+    def update_fiber_visualization(self):
+        """Update fiber glyphs with user-selectable method."""
+
+        self.cleanup_fiber_visualization()
+
+        if not self.should_visualize_fibers():
+            self.ctrl.view_update()
+            return
+
+        try:
+            if self.state.selected_fiber_method == "Slice-based":
+                self.update_fibers_slice_based()
+            elif self.state.selected_fiber_method == "Mesh-based":
+                self.update_fibers_mesh_based()
+            elif (
+                self.state.selected_fiber_method == "Grid-based with resolution control"
+            ):
+                self.update_fibers_grid_based()
+            else:
+                raise Exception(
+                    f"You should not be here! Method {self.state.selected_fiber_method} not enabled!"
+                )
+        except Exception as e:
+            logger.error(f"Failed to generate fibers: {e}")
+        self.ctrl.view_update()
+
+    def update_fibers_slice_based(self):
+        """Generate slices along user-selected axis and display fiber vectors
+        at slice points."""
+
+        logger.info("Fiber visualization method selected: Slice-based")
+
+        if not self.should_visualize_fibers():
+            return
+
+        try:
+            fiber_field = self.state.selected_fiber_array
+
+            mesh = self.ensure_point_fiber_data(
+                self._actors["problem_mesh"], fiber_field
+            )
+            if mesh is None:
+                return
+
+            # Get the direction vector
+            direction_vector = self.get_slice_direction(mesh)
+
+            # Generate slice positions along this direction
+            slice_positions = self.generate_slice_positions_along_vector(
+                mesh, direction_vector, self.state.fiber_slice_density
+            )
+
+            # Create slice plane actors if enabled
+            if self.state.show_slice_planes:
+                self.create_slice_plane_actors(mesh, slice_positions, direction_vector)
+
+            # Collect all points and fiber vectors from all slices
+            all_slice_points = []
+            all_fiber_vectors = []
+
+            for slice_pos in slice_positions:
+                # Extract fibers exactly on this slice plane
+                slice_points, slice_vectors = self.extract_fibers_on_slice(
+                    mesh=mesh,
+                    fiber_field=fiber_field,
+                    direction_vector=direction_vector,
+                    slice_position=slice_pos,
+                    vector_density=self.state.fiber_vector_density,
+                )
+
+                if len(slice_points) > 0:
+                    all_slice_points.append(slice_points)
+                    all_fiber_vectors.append(slice_vectors)
+
+                else:
+                    logger.debug(
+                        f"No fibers found on slice at position {slice_pos:.3f}"
+                    )
+
+            if len(all_slice_points) == 0:
+                logger.info("No fibers found on any slices")
+                return
+
+            # Combine all points and vectors
+            all_slice_points = np.vstack(all_slice_points)
+            all_fiber_vectors = np.vstack(all_fiber_vectors)
+
+            logger.info(f"Total fibers visualized: {len(all_slice_points)}")
+
+            # Create glyphs for visualization
+            self.create_point_fiber_glyphs(
+                all_slice_points, all_fiber_vectors, self.state.fiber_scale
+            )
+
+            # Show axes for orientation
+            self._server_vars["render_window"].show_axes()
+
+            # Update view
+            self.ctrl.view_update()
+
+        except Exception as e:
+            logger.error(f"Failed to update fiber visualization: {e}")
+
+    def generate_slice_positions_along_vector(self, mesh, direction_vector, density):
+        """Generate slice positions along the specified direction vector with
+        the given density. The slice positions start at [0, 0, 0] and cover the
+        spatial extent of the considered mesh.
+
+        Args:
+            mesh (pv.DataSet): Mesh whose spatial extent is used to determine
+            the slicing range.
+            direction_vector (array-like): Direction along which mesh points are projected
+            to define the slice positions.
+            density (float): Normalized slice-density control parameter.
+
+        Returns:
+            np.ndarray: One-dimensional array of scalar positions along the chosen
+            direction. These values represent projected locations used later to
+            place planes perpendicular to the direction vector.
+        """
+
+        points = mesh.points
+
+        direction_vector = np.asarray(direction_vector)
+
+        # Project all points onto the direction vector using a vectorized dot product
+        projections = points @ direction_vector
+
+        min_val = np.min(projections)
+        max_val = np.max(projections)
+
+        min_num_slices = 2
+        max_num_slices = 20
+
+        num_slices = max(
+            1, int(min_num_slices + (max_num_slices - min_num_slices) * density)
+        )
+
+        return np.linspace(
+            min_val, max_val, num_slices + 2
+        )  # [1:-1] First and last can be optionally removed
+
+    def should_visualize_fibers(self):
+        """Check if fibers should be visualized."""
+        return (
+            self.state.fiber_visibility
+            and self.state.selected_fiber_array
+            and "problem_mesh" in self._actors
+        )
+
+    def cleanup_fiber_visualization(self):
+        """Remove existing fiber and slice actors."""
+
+        actors_to_remove = [
+            name
+            for name in self._actors.keys()
+            if name.startswith("fibers") or name.startswith("slice_")
+        ]
+
+        for actor_name in actors_to_remove:
+            actor = self._actors.get(actor_name)
+            if actor:
+                self._server_vars["render_window"].remove_actor(actor)
+            self._actors.pop(actor_name, None)
+
+    def ensure_point_fiber_data(self, mesh, fiber_field):
+        """Ensure fiber data exists on points. If it exists only in
+        `mesh.cell_data`, convert cell-associated data to point-associated data
+        using `cell_data_to_point_data(...)`.
+
+        Args:
+            mesh (pv.DataSet): Input mesh containing fiber data in either point data
+                or cell data.
+            fiber_field (str): Name of the fiber field to retrieve.
+
+        Returns:
+            pv.DataSet | None: A mesh in which `fiber_field` is available in
+            `point_data`, or `None` if the field is missing or conversion fails.
+        """
+
+        if fiber_field in mesh.point_data:
+            return copy.deepcopy(mesh)
+
+        cache = self._server_vars.setdefault("fiber_point_cache", {})
+        if fiber_field in cache:
+            return cache[fiber_field]
+
+        if fiber_field not in mesh.cell_data:
+            logger.warning(f"Fiber field '{fiber_field}' missing in mesh data")
+            return None
+
+        try:
+            converted = copy.deepcopy(mesh.cell_data_to_point_data())
+            if fiber_field in converted.point_data:
+                cache[fiber_field] = converted
+                return converted
+            logger.warning(
+                f"Fiber field '{fiber_field}' unavailable after cell-to-point conversion"
+            )
+            return None
+        except Exception as exc:
+            logger.error(f"Cell-to-point conversion failed for '{fiber_field}': {exc}")
+            return None
+
+    def extract_fibers_on_slice(
+        self, mesh, fiber_field, direction_vector, slice_position, vector_density
+    ):
+        """Extract fiber vectors from mesh points that lie exactly on slice
+        planes.
+
+        Args:
+            mesh (pv.DataSet): Mesh containing the selected fiber field in point
+                data.
+            fiber_field (str): Name of the fiber vector field stored in
+                `mesh.point_data`.
+            direction_vector (array-like): Plane normal defining the slice
+                orientation.
+            slice_position (float): Scalar position of the slice plane along the
+                given direction.
+            vector_density (float): Fraction controlling downsampling of vectors
+                extracted on the slice.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: A tuple containing:
+                - slice_points: Array of 3D coordinates of selected mesh points
+                near the slice plane.
+                - slice_vectors: Array of normalized fiber vectors corresponding to
+                those points.
+
+            Empty arrays are returned if no valid points are found.
+        """
+
+        # Get mesh points
+        points = mesh.points
+
+        # Check if fiber field exists in point data
+        if fiber_field not in mesh.point_data:
+            logger.warning(f"Fiber field '{fiber_field}' not found in point data")
+            return np.array([]), np.array([])
+
+        # Get fiber vectors at mesh points
+        fiber_vectors = mesh.point_data[fiber_field]
+
+        # Normalize the direction vector
+        plane_normal = np.array(direction_vector)
+        plane_normal = plane_normal / np.linalg.norm(plane_normal)
+
+        # Find a reference point on the plane (closest to mesh center)
+        mesh_center = np.mean(points, axis=0)
+        center_proj = np.dot(mesh_center, plane_normal)
+        reference_point_on_plane = (
+            mesh_center + (slice_position - center_proj) * plane_normal
+        )
+
+        # Calculate distance of each mesh point to the slice plane
+        # Formula: distance = |n·(p - p0)| where n is plane normal, p is point, p0 is reference point
+        distances = np.abs(np.dot(points - reference_point_on_plane, plane_normal))
+
+        # Tolerance based on mesh size
+        tolerance = self.get_slice_thickness(mesh)
+
+        # Find points within tolerance
+        on_slice_mask = distances <= tolerance
+
+        if not np.any(on_slice_mask):
+            # No points on this slice
+            return np.array([]), np.array([])
+
+        # Get points and vectors on slice
+        slice_points = points[on_slice_mask]
+        slice_vectors = fiber_vectors[on_slice_mask]
+
+        # Filter out zero-length vectors
+        vector_lengths = np.linalg.norm(slice_vectors, axis=1)
+        valid_mask = vector_lengths > 1e-10
+        slice_points = slice_points[valid_mask]
+        slice_vectors = slice_vectors[valid_mask]
+
+        if len(slice_points) == 0:
+            return np.array([]), np.array([])
+
+        # Downsample based on vector density setting
+        if vector_density < 1.0:
+            n_points = len(slice_points)
+            min_vectors_per_slice = 10
+            target_points = max(min_vectors_per_slice, int(n_points * vector_density))
+            if target_points < n_points:
+                # Deterministic, evenly spaced sampling
+                indices = np.unique(
+                    np.linspace(0, n_points - 1, target_points, dtype=int)
+                )
+                slice_points = slice_points[indices]
+                slice_vectors = slice_vectors[indices]
+        # Normalize the vectors for consistent display
+        norms = np.linalg.norm(slice_vectors, axis=1, keepdims=True)
+        slice_vectors = slice_vectors / norms
+
+        return slice_points, slice_vectors
+
+    def get_slice_thickness(self, mesh):
+        """Calculate adaptive slice thickness based on mesh size and user
+        setting.
+
+        Args:
+            mesh (pv.DataSet): Mesh whose point distribution is used to estimate
+                the slice thickness.
+
+        Returns:
+            float: Maximum allowed perpendicular distance of a point from a slice plane.
+        """
+
+        # Get mesh bounds
+        bounds = mesh.bounds
+
+        # Calculate mesh diagonal for reference
+        diag = np.sqrt(
+            (bounds[1] - bounds[0]) ** 2
+            + (bounds[3] - bounds[2]) ** 2
+            + (bounds[5] - bounds[4]) ** 2
+        )
+
+        # Default fallback spacing
+        avg_spacing = diag * 0.01
+
+        # Use a sampled KDTree to estimate point spacing without building
+        # an index over the entire mesh for every slice update.
+        if mesh.n_points > 10:
+            sample_indices = np.linspace(
+                0, mesh.n_points - 1, min(100, mesh.n_points), dtype=int
+            )
+            sample_points = mesh.points[sample_indices]
+
+            if len(sample_points) > 1:
+                tree = KDTree(sample_points)
+                distances, _ = tree.query(sample_points, k=2)
+
+                if len(distances) > 0:
+                    # Get distances to nearest neighbor, excluding self
+                    nearest_dists = distances[:, 1]
+                    avg_spacing = np.mean(nearest_dists)
+
+        # Map user tolerance (0-1) to physical thickness
+        user_tolerance = self.state.fiber_tolerance
+
+        min_thickness = avg_spacing * 0.4
+        max_thickness = avg_spacing * 2.0
+        thickness = min_thickness + user_tolerance * (max_thickness - min_thickness)
+
+        return thickness
+
+    def get_slice_direction(self, mesh):
+        """Gets the user-selected slicing direction vector.
+
+        Args:
+            mesh (pv.DataSet): Mesh whose point coordinates are used to determine
+                the slicing direction.
+
+        Returns:
+            list[float]: Normalized 3D direction vector defining the slice-plane
+            normal.
+        """
+
+        # According to the user selection, return the corresponding direction vector
+        if self.state.fiber_slice_axis == "x":
+            return [1, 0, 0]
+        elif self.state.fiber_slice_axis == "y":
+            return [0, 1, 0]
+        elif self.state.fiber_slice_axis == "z":
+            return [0, 0, 1]
+        elif self.state.fiber_slice_axis == "longest":
+            # The actual longest spatial direction using Principal Component Analysis
+            points = mesh.points
+
+            # Center the points
+            centered = points - np.mean(points, axis=0)
+
+            # Calculate covariance matrix
+            covariance_matrix = np.cov(centered.T)
+
+            # Get eigenvalues and eigenvectors
+            eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+
+            # The first principal component (largest eigenvalue) is the longest direction
+            longest_idx = np.argmax(eigenvalues)
+            direction_vector = eigenvectors[:, longest_idx].real
+
+            # Normalize
+            norm = np.linalg.norm(direction_vector)
+            if norm > 0:
+                direction_vector = direction_vector / norm
+
+            # Make sure direction is consistent (positive X component if possible)
+            if direction_vector[0] < 0:
+                direction_vector = -direction_vector
+
+            return direction_vector.tolist()
+
+        else:
+            raise Exception(f"Invalid fiber slice axis: {self.state.fiber_slice_axis}!")
+
+    def create_slice_plane_actors(self, mesh, slice_positions, slice_normal):
+        """Create visual planes for slices.
+
+        Args:
+            mesh (pv.DataSet): Mesh whose center and bounds are used to position
+                and size the slice planes.
+            slice_positions (array-like): One-dimensional array of scalar projected
+                positions defining where slice planes should be placed along the
+                slice normal.
+            slice_normal (array-like): Normal vector defining the orientation of
+                all slice planes.
+
+        Returns:
+            None
+        """
+
+        plane_size = self.get_problem_length_scale(mesh) * PV_SLICE_PLANE_SIZE_FRAC
+
+        for i, slice_pos in enumerate(slice_positions):
+            # Create plane at slice position
+            mesh_center = np.mean(mesh.points, axis=0)
+            center_proj = np.dot(mesh_center, slice_normal)
+            plane_center = mesh_center + (slice_pos - center_proj) * np.array(
+                slice_normal
+            )
+
+            plane = pv.Plane(
+                center=plane_center,
+                direction=slice_normal,
+                i_size=plane_size,
+                j_size=plane_size,
+            )
+
+            actor_name = f"slice_plane_{i}"
+            self._actors[actor_name] = self._server_vars["render_window"].add_mesh(
+                plane,
+                color="lightgray",
+                opacity=0.2,
+                show_edges=True,
+                edge_color="darkgray",
+                line_width=1,
+                render=False,
+                name=actor_name,
+            )
+
+    def create_point_fiber_glyphs(self, points, vectors, scale):
+        """Create arrow glyphs at specified points.
+
+        Args:
+            points (np.ndarray): Array of 3D point coordinates where fiber arrows
+                should be placed.
+            vectors (np.ndarray): Array of 3D direction vectors associated with the
+                input points. Each vector determines the orientation of one glyph.
+            scale (float): User-controlled scaling factor for arrow size.
+
+        Returns:
+            None
+        """
+
+        if len(points) == 0:
+            return
+
+        # Create point cloud
+        point_cloud = pv.PolyData(points)
+        point_cloud.point_data["vectors"] = vectors
+
+        # Create arrow glyph
+        arrow = pv.Arrow(
+            tip_length=0.3,
+            tip_radius=0.1,
+            shaft_radius=0.03,
+            tip_resolution=10,
+            shaft_resolution=10,
+        )
+
+        # Scale factor based on mesh size
+        mesh = self._actors["problem_mesh"]
+        scale_factor = self.get_problem_length_scale(mesh) * 0.01 * scale
+
+        # Create glyphs
+        glyphs = point_cloud.glyph(
+            orient="vectors", scale=False, factor=scale_factor, geom=arrow
+        )
+
+        # Add to renderer
+        self._actors["fibers"] = self._server_vars["render_window"].add_mesh(
+            glyphs, color="orange", name="fibers_actor", render=False
+        )
+
+    def update_fibers_mesh_based(self):
+        """Mesh-based fiber visualization with density control."""
+        # Get mesh and ensure fiber array is in point data
+
+        logger.info("Fiber visualization method selected: Mesh-based")
+
+        mesh = self._actors["problem_mesh"]
+
+        if self.state.selected_fiber_array in mesh.cell_data:
+            mesh_with_data = copy.deepcopy(mesh.cell_data_to_point_data())
+        else:
+            mesh_with_data = copy.deepcopy(mesh)
+
+        # Extract points and vectors
+        vectors = mesh_with_data.point_data[self.state.selected_fiber_array]
+        points = mesh_with_data.points
+
+        if len(points) == 0:
+            return
+
+        # Calculate target number of fibers based on density slider
+        frac = float(np.clip(self.state.fiber_density, 0.0, 1.0))
+
+        if frac == 1.0:
+            # Show all fibers
+            indices = np.arange(len(points))
+        elif frac == 0.0:
+            # Show minimum (1 fiber)
+            indices = np.array([0])
+        else:
+            # Calculate target count and select evenly spaced indices
+            target = max(1, int(np.ceil(frac * len(points))))
+
+            if target < len(points):
+                # Use linspace for even distribution across mesh
+                subset_indices = np.linspace(0, len(points) - 1, target, endpoint=True)
+                indices = np.unique(np.round(subset_indices).astype(int))
+                if len(indices) > target:
+                    indices = indices[:target]
+            else:
+                indices = np.arange(len(points))
+
+        # Create new mesh with only selected points
+        selected_points = points[indices]
+        selected_vectors = vectors[indices]
+
+        arrows = pv.PolyData(selected_points)
+        arrows.point_data["vectors"] = selected_vectors
+
+        # Generate arrow glyphs
+        glyphs = arrows.glyph(
+            orient="vectors",
+            scale=False,
+            factor=self.state.fiber_scale * self.get_problem_length_scale(mesh) * 0.01,
+            geom=pv.Arrow(tip_length=0.3, tip_radius=0.1, shaft_radius=0.03),
+        )
+
+        # Update visualization
+        self._actors["fibers"] = self._server_vars["render_window"].add_mesh(
+            glyphs, color="orange", name="fibers_actor", render=False
+        )
+
+        logger.info(f"Total fibers visualized: {len(indices)}")
+
+    def update_fibers_grid_based(self):
+        """Grid-based fiber visualization with user-specified resolution."""
+
+        logger.info("Fiber visualization method selected: Grid-based")
+
+        mesh = self._actors["problem_mesh"]
+        bounds = mesh.bounds
+
+        rx = max(1, int(self.state.fiber_res_x * 0.5))
+        ry = max(1, int(self.state.fiber_res_y * 0.5))
+        rz = max(1, int(self.state.fiber_res_z * 0.5))
+
+        dx = bounds[1] - bounds[0]
+        dy = bounds[3] - bounds[2]
+        dz = bounds[5] - bounds[4]
+
+        x_coords = np.linspace(bounds[0], bounds[1], rx)
+        y_coords = np.linspace(bounds[2], bounds[3], ry)
+        z_coords = np.linspace(bounds[4], bounds[5], rz)
+
+        xx, yy, zz = np.meshgrid(x_coords, y_coords, z_coords, indexing="ij")
+        grid_points = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+
+        logger.info(f"Total fibers visualized: {len(grid_points)}")
+
+        if self.state.selected_fiber_array in mesh.point_data:
+            mesh_pt = copy.deepcopy(mesh)
+        elif self.state.selected_fiber_array in mesh.cell_data:
+            mesh_pt = copy.deepcopy(mesh.cell_data_to_point_data())
+        else:
+            logger.error(
+                f"Fiber field '{self.state.selected_fiber_array}' not found in point_data or cell_data."
+            )
+            return
+
+        if self.state.selected_fiber_array not in mesh_pt.point_data:
+            logger.error(
+                f"Failed to obtain point-associated fiber data for '{self.state.selected_fiber_array}'."
+            )
+            return
+
+        vectors_pt = mesh_pt.point_data[self.state.selected_fiber_array]
+
+        valid_points = []
+        valid_vectors = []
+
+        # Sample the mesh in bulk at all grid points to avoid O(N) Python calls
+        # into VTK via find_containing_cell.
+        sampled_points = pv.PolyData(grid_points).sample(mesh_pt)
+
+        if "vtkValidPointMask" not in sampled_points.point_data:
+            logger.error("Failed to determine interior sample points.")
+            return
+
+        valid_mask = sampled_points.point_data["vtkValidPointMask"].astype(bool)
+
+        if not np.any(valid_mask):
+            logger.error("No interior grid points found for fiber visualization.")
+            return
+
+        if self.state.selected_fiber_array not in sampled_points.point_data:
+            logger.error(
+                f"Failed to sample fiber data for '{self.state.selected_fiber_array}' on grid points."
+            )
+            return
+
+        valid_points = grid_points[valid_mask]
+        valid_vectors = np.asarray(
+            sampled_points.point_data[self.state.selected_fiber_array][valid_mask]
+        )
+
+        mags = np.linalg.norm(valid_vectors, axis=1, keepdims=True)
+        mags[mags == 0] = 1.0
+        valid_vectors /= mags
+
+        fiber_poly = pv.PolyData(valid_points)
+        fiber_poly.point_data[self.state.selected_fiber_array] = valid_vectors
+
+        arrow_scale = 0.01 * max(dx, dy, dz) * self.state.fiber_scale
+
+        glyphs = fiber_poly.glyph(
+            orient=self.state.selected_fiber_array,
+            scale=False,
+            factor=arrow_scale,
+            geom=pv.Arrow(
+                tip_length=0.3,
+                tip_radius=0.1,
+                shaft_radius=0.03,
+            ),
+        )
+        if "fibers" in self._actors:
+            self._server_vars["render_window"].remove_actor(self._actors["fibers"])
+
+        self._actors["fibers"] = self._server_vars["render_window"].add_mesh(
+            glyphs,
+            color="orange",
+            name="fibers_actor",
+            opacity=0.9,
+            lighting=True,
+            render_lines_as_tubes=True,
+        )
+
+        self._server_vars["render_window"].render()
+
+    @change(
+        "fiber_visibility",
+        "selected_fiber_array",
+        "selected_fiber_method",
+        "fiber_scale",
+        "fiber_slice_density",
+        "fiber_vector_density",
+        "fiber_slice_axis",
+        "show_slice_planes",
+        "fiber_tolerance",
+        "fiber_density",
+        "fiber_res_x",
+        "fiber_res_y",
+        "fiber_res_z",
+    )
+    def on_fiber_settings_change(self, **kwargs):
+        """Reaction to changes in fiber visualization settings."""
+
+        self.update_fiber_visualization()
 
     def update_pyvista_render_objects(self):
         """Update/ initialize pyvista view objects (reader, thresholds, global
@@ -1034,6 +1737,35 @@ class FourCWebServer:
             6  # precision for the user input of the values defined above: x, y, z and t_max
         )
 
+    def init_fiber_state_and_server_vars(self):
+        """Initialize the state and server variables for the fiber
+        visualization section."""
+
+        self.state.section_names["FIBERS"] = {
+            "subsections": ["FIBERS"],
+            "content_mode": self.state.all_content_modes["fibers_section"],
+        }
+        self.state.fiber_visibility = False
+        self.state.fiber_scale = 7
+
+        self.state.fiber_slice_density = 0.7
+        self.state.fiber_vector_density = 0.7
+        self.state.fiber_slice_axis = "longest"
+
+        self.state.available_fiber_arrays = []
+        self.state.selected_fiber_array = None
+        self.state.selected_fiber_method = "Slice-based"
+
+        self.state.show_slice_planes = False
+
+        self.state.fiber_tolerance = 0.35
+
+        self.state.fiber_density = 0.1
+        self.state.fiber_res_x = 60
+        self.state.fiber_res_y = 60
+        self.state.fiber_res_z = 15
+        self.state.fiber_info_dialog = False
+
     def append_include_files(self, file_paths):
         """Appends list of files to the included files input field.
 
@@ -1143,6 +1875,7 @@ class FourCWebServer:
             "design_conditions_section": "design_conditions_section",
             "result_description_section": "result_description_section",
             "funct_section": "funct_section",
+            "fibers_section": "fibers_section",
         }
 
         # initialize info mode value: False (bottom sheet with infos is not displayed until "INFO" button is pressed, and INFO_MODE is then set to True)

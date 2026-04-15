@@ -15,3 +15,6 @@ PV_SPHERE_FRAC_SCALE = 1.0 / 75.0
 EXODUS_FILE_SUFFIXES = [".exo", ".e"]
 VTU_FILE_SUFFIXES = [".vtu"]
 SUPPORTED_GEOMETRY_FORMATS = EXODUS_FILE_SUFFIXES + VTU_FILE_SUFFIXES
+
+# Fraction of the problem length scale used to size the visualized slice planes.
+PV_SLICE_PLANE_SIZE_FRAC = 0.8

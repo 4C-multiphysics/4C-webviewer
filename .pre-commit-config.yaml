@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
         name: Check for added large files
@@ -24,7 +24,7 @@ repos:
       - id: trailing-whitespace
         name: Check for trailing whitespaces
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.3
+    rev: 1.9.4
     hooks:
       - id: bandit
         name: Run bandit (security linter for python)
@@ -43,7 +43,7 @@ repos:
         name: Run interrogate (linter for docstrings)
         args: [--fail-under=100, --ignore-init-module, --style=google, -vv]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
+    rev: v2.3.1
     hooks:
       - id: mypy
         name: Run mypy (static type checker for python)
@@ -53,8 +53,10 @@ repos:
     hooks:
       - id: removestar
         name: Run removestar (remove wildcard imports)
+        additional_dependencies:
+          - pyflakes<4
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.1
+    rev: v0.16.8
     hooks:
       - id: ruff # linter
         name: Run ruff (linter for Python)
@@ -62,12 +64,12 @@ repos:
       - id: ruff-format # formatter
         name: Run ruff (formatter for Python)
   - repo: https://github.com/crate-ci/typos
-    rev: v1.30.2
+    rev: v1.50.2
     hooks:
       - id: typos
         name: Run typo checker
   - repo: https://github.com/google/yamlfmt
-    rev: v0.16.0
+    rev: v0.21.0
     hooks:
       - id: yamlfmt
         name: Run yamlfmt

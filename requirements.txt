@@ -82,7 +82,7 @@ more-itertools==10.8.0
     # via trame-server
 msgpack==1.2.1
     # via wslink
-multidict==6.7.1
+multidict==6.9.1
     # via
     #   aiohttp
     #   yarl

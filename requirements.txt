@@ -124,7 +124,6 @@ pillow==12.3.0
 platformdirs==4.9.4
     # via
     #   pooch
-    #   python-discovery
     #   virtualenv
 plotly==6.6.0
     # via
@@ -152,7 +151,7 @@ python-dateutil==2.9.0.post0
     # via
     #   matplotlib
     #   pandas
-python-discovery==1.2.0
+python-discovery==1.6.1
     # via virtualenv
 python-utils==3.9.1
     # via lnmmeshio
@@ -215,7 +214,7 @@ typing-extensions==4.15.0
     #   pyvista
 urllib3==2.8.0
     # via requests
-virtualenv==21.2.0
+virtualenv==21.7.13
     # via pre-commit
 vtk==9.4.2
     # via

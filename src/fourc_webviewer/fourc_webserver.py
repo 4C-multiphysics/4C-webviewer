@@ -183,9 +183,10 @@ class FourCWebServer:
         self.state.fourc_yaml_name = self._server_vars["fourc_yaml_name"]
         # description as given in the TITLE section
         try:
-            self.state.description = "\n".join(
-                self._server_vars["fourc_yaml_content"]["TITLE"]
-            )  # list of lines(strings): input file description
+            title = self._server_vars["fourc_yaml_content"]["TITLE"]
+            self.state.description = (
+                "\n".join(title) if isinstance(title, list) else title
+            )  # input file description could be a single string, or a list of strings
         except:  # the description is not always provided: then initialize empty string
             self.state.description = ""
 

@@ -32,7 +32,7 @@ cyclopts==4.10.0
     # via pyvista
 deprecation==2.1.0
     # via rapidyaml
-distlib==0.4.0
+distlib==0.4.4
     # via virtualenv
 docstring-parser==0.17.0
     # via cyclopts
@@ -108,13 +108,14 @@ numpy==2.3.5
     #   pandas
     #   pyvista
     #   scipy
-packaging==26.0
+packaging==26.3
     # via
     #   deprecation
     #   matplotlib
     #   plotly
     #   pooch
     #   pytest
+    #   virtualenv
 pandas==3.0.1
     # via -r requirements.in
 pillow==12.3.0
@@ -214,7 +215,7 @@ typing-extensions==4.15.0
     #   pyvista
 urllib3==2.8.0
     # via requests
-virtualenv==21.7.13
+virtualenv==21.14.13
     # via pre-commit
 vtk==9.4.2
     # via

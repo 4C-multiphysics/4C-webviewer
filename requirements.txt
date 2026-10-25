@@ -118,7 +118,7 @@ packaging==26.3
     #   virtualenv
 pandas==3.0.1
     # via -r requirements.in
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   matplotlib
     #   pyvista
